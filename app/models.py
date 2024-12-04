@@ -43,3 +43,4 @@ class RecentSearch(db.Model):
         # Update the database fields
         self.click_dates = ','.join(filtered_dates)
         self.clicks = len(filtered_dates)
+        

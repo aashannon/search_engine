@@ -155,7 +155,6 @@ def update_recent():
 
 
 
-
 # Route to delete all entries in StateCount
 @main.route('/delete_all_state_counts')
 def delete_state_counts_route():

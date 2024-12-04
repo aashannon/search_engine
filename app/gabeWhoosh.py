@@ -23,6 +23,7 @@ class MyWhooshSearch(object):
             ix = index.create_in("./data/whooshdir", schema)
             writer = ix.writer()
 
+
             pr = Page_Rank('./data/crawler_state.pkl', 20)
             scores = {url: pr.ranks[i] for i, url in enumerate(pr.urls)}
 
