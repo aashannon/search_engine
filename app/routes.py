@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, jsonif
 from datetime import datetime
 from pytz import timezone
 from . import db
+from sqlalchemy import text
 from .models import RecentSearch, StateCount
 import ast
 import us
@@ -9,6 +10,11 @@ import os
 
 
 main = Blueprint('main', __name__)
+
+def batch_list(input_list, batch_size):
+    """Splits a list into smaller batches of a specified size."""
+    for i in range(0, len(input_list), batch_size):
+        yield input_list[i:i + batch_size]
 
 
 def fetch_state_counts(filter=None):
@@ -110,22 +116,44 @@ def delete_all_recent_search():
     finally:
         db.session.close()
 
+from sqlalchemy import text
+
 def update_recent():
     states = us.states.STATES
     for state in states:
-        # print(state)
-        state = str(state).lower()
-        state = state.replace(" ", "_")
+        state = str(state).lower().replace(" ", "_")
         total_clicks = 0
         state_results = StateCount.query.filter_by(state=state).first()
         if state_results:
             id_list = [int(id_str) for id_str in state_results.list_of_ids.split(',') if id_str.strip()]
 
-            clicks_list = RecentSearch.query.filter(RecentSearch.id.in_(id_list)).with_entities(RecentSearch.clicks).all()
-            total_clicks = sum([click[0] for click in clicks_list])
+            # Drop the temporary table if it exists, then create a new one
+            db.session.execute(text('DROP TABLE IF EXISTS temp_ids'))
+            db.session.execute(text('CREATE TEMP TABLE temp_ids (id INTEGER)'))
+            
+            # Insert IDs into the temporary table in batches
+            for batch in batch_list(id_list, 250):  # Adjust batch size
+                db.session.execute(
+                    text('INSERT INTO temp_ids (id) VALUES (:id)'),
+                    [{'id': id} for id in batch]  # Pass parameters as a list of dictionaries
+                )
+            
+            # Query clicks using the temporary table
+            clicks_list = db.session.execute(
+                text('SELECT clicks FROM recent_search WHERE id IN (SELECT id FROM temp_ids)')
+            ).fetchall()
+            
+            # Drop the temporary table after use
+            db.session.execute(text('DROP TABLE temp_ids'))
+            
+            total_clicks = sum(click[0] for click in clicks_list)
             state_results.count = total_clicks
+        
         db.session.commit()
     return
+
+
+
 
 
 # Route to delete all entries in StateCount
@@ -162,7 +190,12 @@ def init():
         id_list = [item['id'] for item in all_results]
         # print(len(id_list))
 
-        clicks_list = RecentSearch.query.filter(RecentSearch.id.in_(id_list)).with_entities(RecentSearch.clicks).all()
+        clicks_list = []
+        for batch in batch_list(id_list, 250):  # Use a safe batch size
+            clicks_list.extend(
+                RecentSearch.query.filter(RecentSearch.id.in_(batch)).with_entities(RecentSearch.clicks).all()
+            )
+
         total_clicks = sum([click[0] for click in clicks_list])
         # print(all_results)
         # Count occurrences of energy keywords

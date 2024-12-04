@@ -23,10 +23,10 @@ class MyWhooshSearch(object):
             ix = index.create_in("./data/whooshdir", schema)
             writer = ix.writer()
 
-            pr = Page_Rank('./data/5k_crawler_state.pkl', 20)
+            pr = Page_Rank('./data/crawler_state.pkl', 20)
             scores = {url: pr.ranks[i] for i, url in enumerate(pr.urls)}
 
-            data = self.load_data('./data/5k_crawler_state.pkl')['url_outgoing_links']
+            data = self.load_data('./data/crawler_state.pkl')['url_outgoing_links']
             for i, (url, content) in enumerate(data.items()):
                 # if(i < 100):
                 raw_html = content[1]['text']
